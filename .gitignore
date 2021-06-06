@@ -127,3 +127,10 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+
+#remove credentials
+cred/
+credentials/
+auth/
+authentication/
