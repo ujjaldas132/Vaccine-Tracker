@@ -8,20 +8,41 @@ date: June, 2021
 
 
 import requests
+import sched, time
 from datetime import datetime
 import credentials.credentials
+
+# User defined data
+### Add your distric ids
+interestedDistId = [49,50]
+#Add your BOT credential here
+BOT_CREDENTIALS = credentials.credentials.BOT_CRENDENTIALS
+# ADD the group id
+TELEGRAM_GROUP_CREDENTIAL = credentials.credentials.GROUP_ID
+
 
 todayDate = datetime.now().strftime("%d-%m-%y")
 header={'User-Agent':"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.93 Safari/537.36"}
 print(todayDate)
-interestedDistId = [49,50]
-
 districtWiseCalenderBaseUrl="https://cdn-api.co-vin.in/api/v2/appointment/sessions/public/calendarByDistrict?"
 # districtWiseCalenderBaseUrl="https://cdn-api.co-vin.in/api/v2/appointment/sessions/public/calendarByDistrict?district_id=50&date=06-06-2021"
+baseTelegramApiUrl="https://api.telegram.org/botADD_BOT_ID_HERE/sendMessage?chat_id=@ADD_GROUP_ID_HERE&text="
+addBotIdKey="ADD_BOT_ID_HERE"
+addGroupIdKey="ADD_GROUP_ID_HERE"
+SESSION_DATE = "sessionDate"
+MIN_AGE_LIMIT = "min_age_limit"
+VACCINE_NAME = "vaccineName"
+AVAILABLE_CAPACITY_DOSE1 = "available_capacity_dose1"
+AVAILABLE_CAPACITY_DOSE2 = "available_capacity_dose2"
+CENTER_NAME="centerName"
+DISTRICT_NAME="district_name"
+SESSION_DATA="session_data"
+
+# function to get the SETU api
 def getDistricWiseCalenderUrl(districId,date=todayDate):
     query="district_id="+districId + "&date=" + date
     return districtWiseCalenderBaseUrl + query
-
+#Function to get data from apis
 def getDataResponseFromCowin(districId):
     url = getDistricWiseCalenderUrl(str(districId))
     response = requests.get(url,headers=header)
@@ -29,28 +50,21 @@ def getDataResponseFromCowin(districId):
     return response
 
 
-
-SESSION_DATE = "sessionDate"
-MIN_AGE_LIMIT = "min_age_limit"
-VACCINE_NAME = "vaccineName"
-AVAILABLE_CAPACITY_DOSE1 = "available_capacity_dose1"
-AVAILABLE_CAPACITY_DOSE2 = "available_capacity_dose2"
-
+# age filter
 def isAgeInScope(age):
     maxAge = 45
-    # return True
     return int(age)<maxAge
-
+#Vaccine filter
 def isVaccineInScope(vaccineName):
-    # return True
     return vaccineName!="COVISHIELD"
 
+#Session filter
 def isSessionInScope(sessionData):
     isInScope = isAgeInScope(sessionData[MIN_AGE_LIMIT]) & isVaccineInScope(sessionData[VACCINE_NAME])
     return isInScope
 
 
-
+# function to process the session data
 def processSessionDataJson(sessionDataJsons):
     sessionMapCollection = {}
     for sessionJson in sessionDataJsons:
@@ -69,10 +83,7 @@ def processSessionDataJson(sessionDataJsons):
             sessionMapCollection[sessionDate]=sessionMap
     return sessionMapCollection
 
-
-CENTER_NAME="centerName"
-DISTRICT_NAME="district_name"
-SESSION_DATA="session_data"
+# function to process the center data
 def processCenterData(centerDataJson):
     centerDataMapList = []
     sessiondataMaps = processSessionDataJson(centerDataJson["sessions"])
@@ -88,14 +99,7 @@ def processCenterData(centerDataJson):
         centerDataMapList.append(centerDataMap)
     return centerDataMapList
 
-
-baseTelegramApiUrl="https://api.telegram.org/botADD_BOT_ID_HERE/sendMessage?chat_id=@ADD_GROUP_ID_HERE&text="
-addBotIdKey="ADD_BOT_ID_HERE"
-addGroupIdKey="ADD_GROUP_ID_HERE"
-
-
-
-
+# function to construct the telegram message
 def constructTheTelegramMesssage(messageMap):
     message = " Center Name : " + messageMap[CENTER_NAME] + "\n"
     message += "Distric Name : " + messageMap[DISTRICT_NAME] + "\n"
@@ -107,35 +111,38 @@ def constructTheTelegramMesssage(messageMap):
     return message
 
 
-
+# function to send the message to telegram
 def sendMessageToTelegram(message):
-    telegramApi = baseTelegramApiUrl.replace(addBotIdKey, credentials.credentials.BOT_CRENDENTIALS)
-    telegramApi = telegramApi.replace(addGroupIdKey, credentials.credentials.GROUP_ID)
+    telegramApi = baseTelegramApiUrl.replace(addBotIdKey, BOT_CREDENTIALS)
+    telegramApi = telegramApi.replace(addGroupIdKey, TELEGRAM_GROUP_CREDENTIAL)
     finalUrl=telegramApi+constructTheTelegramMesssage(message)
     response = requests.get(finalUrl)
     print(response.text)
 
 
-
-
-
+# to process the reponse
 def processResponse(responseData):
     centerDataList = []
     responseJson = responseData.json()
     for centerData in responseJson["centers"]:
         centerRequiredData = processCenterData(centerData)
         if (centerRequiredData!=None):
-            # print(centerRequiredData[0])
             centerDataList +=centerRequiredData
     for message in centerDataList:
         sendMessageToTelegram(message)
     return centerDataList
 
 
-
-if __name__ == '__main__':
-    requiredData=[]
+# function to start the process
+def startProcess():
+    requiredData = []
     for distId in interestedDistId:
-        cowinDataResponse= getDataResponseFromCowin(distId)
+        cowinDataResponse = getDataResponseFromCowin(distId)
         requiredData += processResponse(cowinDataResponse)
     print(requiredData)
+
+
+if __name__ == '__main__':
+    while True:
+        startProcess()
+        time.sleep(30)
