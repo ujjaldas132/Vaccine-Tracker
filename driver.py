@@ -58,9 +58,14 @@ def isAgeInScope(age):
 def isVaccineInScope(vaccineName):
     return vaccineName!="COVISHIELD"
 
+# availablity of dose
+def isDoseAvailable(vaccineNum):
+    return vaccineNum > 0
+
+
 #Session filter
 def isSessionInScope(sessionData):
-    isInScope = isAgeInScope(sessionData[MIN_AGE_LIMIT]) & isVaccineInScope(sessionData[VACCINE_NAME])
+    isInScope = isAgeInScope(sessionData[MIN_AGE_LIMIT]) & isVaccineInScope(sessionData[VACCINE_NAME]) & isDoseAvailable(int(sessionData[AVAILABLE_CAPACITY_DOSE2]))
     return isInScope
 
 
@@ -101,6 +106,7 @@ def processCenterData(centerDataJson):
 
 # function to construct the telegram message
 def constructTheTelegramMesssage(messageMap):
+    # print(messageMap)
     message = " Center Name : " + messageMap[CENTER_NAME] + "\n"
     message += "Distric Name : " + messageMap[DISTRICT_NAME] + "\n"
     message += "Vaccine Name : " + messageMap[SESSION_DATA][VACCINE_NAME] + "\n"
@@ -127,9 +133,7 @@ def processResponse(responseData):
     for centerData in responseJson["centers"]:
         centerRequiredData = processCenterData(centerData)
         if (centerRequiredData!=None):
-            centerDataList +=centerRequiredData
-    for message in centerDataList:
-        sendMessageToTelegram(message)
+            sendMessageToTelegram(centerRequiredData[0])
     return centerDataList
 
 
@@ -139,7 +143,7 @@ def startProcess():
     for distId in interestedDistId:
         cowinDataResponse = getDataResponseFromCowin(distId)
         requiredData += processResponse(cowinDataResponse)
-    print(requiredData)
+    # print(requiredData)
 
 
 if __name__ == '__main__':
