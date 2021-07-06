@@ -37,6 +37,8 @@ AVAILABLE_CAPACITY_DOSE2 = "available_capacity_dose2"
 CENTER_NAME="centerName"
 DISTRICT_NAME="district_name"
 SESSION_DATA="session_data"
+# here all covered centers
+coveredCenters = {}
 
 # function to get the SETU api
 def getDistricWiseCalenderUrl(districId,date=todayDate):
@@ -88,6 +90,21 @@ def processSessionDataJson(sessionDataJsons):
             sessionMapCollection[sessionDate]=sessionMap
     return sessionMapCollection
 
+# function to check whether the center is covered already or not.
+# if covered check is there any increase in number of vaccine : new vaccine alerts
+# centerKey : districtName_CenterName_sessionDate
+def isCoveredCenter(centerKey, vaccineAvailable) :
+    if (centerKey not in coveredCenters) :
+        coveredCenters[centerKey] = vaccineAvailable
+        return True
+    else :
+        if (coveredCenters[centerKey] < vaccineAvailable) :
+            coveredCenters[centerKey] = vaccineAvailable
+            return True
+        else :
+            coveredCenters[centerKey] = vaccineAvailable
+    return False
+
 # function to process the center data
 def processCenterData(centerDataJson):
     centerDataMapList = []
@@ -97,11 +114,14 @@ def processCenterData(centerDataJson):
     centerName = centerDataJson['name']
     districName = centerDataJson['district_name']
     for keyDate in sessiondataMaps.keys():
-        centerDataMap = {}
-        centerDataMap[CENTER_NAME] = centerName
-        centerDataMap[DISTRICT_NAME] = districName
-        centerDataMap[SESSION_DATA]=sessiondataMaps[keyDate]
-        centerDataMapList.append(centerDataMap)
+        availableSecondDoseNum = sessiondataMaps[keyDate][AVAILABLE_CAPACITY_DOSE2]
+        centerKey = "_".join((districName, centerName, keyDate))
+        if (isCoveredCenter(centerKey, availableSecondDoseNum)):
+            centerDataMap = {}
+            centerDataMap[CENTER_NAME] = centerName
+            centerDataMap[DISTRICT_NAME] = districName
+            centerDataMap[SESSION_DATA]=sessiondataMaps[keyDate]
+            centerDataMapList.append(centerDataMap)
     return centerDataMapList
 
 # function to construct the telegram message
@@ -125,17 +145,15 @@ def sendMessageToTelegram(message):
     response = requests.get(finalUrl)
     print(response.text)
 
-
 # to process the reponse
 def processResponse(responseData):
     centerDataList = []
     responseJson = responseData.json()
     for centerData in responseJson["centers"]:
         centerRequiredData = processCenterData(centerData)
-        if (centerRequiredData!=None):
+        if (centerRequiredData!=None and centerRequiredData != []):
             sendMessageToTelegram(centerRequiredData[0])
     return centerDataList
-
 
 # function to start the process
 def startProcess():
@@ -144,7 +162,6 @@ def startProcess():
         cowinDataResponse = getDataResponseFromCowin(distId)
         requiredData += processResponse(cowinDataResponse)
     # print(requiredData)
-
 
 if __name__ == '__main__':
     while True:
